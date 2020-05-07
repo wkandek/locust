@@ -1,0 +1,159 @@
+###
+# Vagrantfile to setup a Locust swarm - see: https://locust.io
+#   a swarm has a master and one or more nodes
+#   the nodes are programmed in python to execute workflows
+#
+# This setup is controlled by puppet:
+# 1. puppetmaster server 
+# 2. locustmain server
+# 3. swarm nodes
+#    nodes could be running in other AWS accounts as well
+#    factor out the nodes part, get another account setup
+#
+# depends on having AWS access keys in the environment similar
+# to what the aws cli requires
+#
+# assure the private key is set to an existing key for your env
+###
+
+# how many locustnodes
+NODE_START = 1
+NODE_COUNT = 50 
+
+### pmaster Configuration Script
+
+$pmasterscript = <<-SCRIPT
+
+echo "deb http://apt.puppetlabs.com bionic puppet5" > /etc/apt/sources.list.d/puppet5.list
+cp /vagrant/puppet5-keyring.gpg /etc/apt/trusted.gpg.d/
+apt-get update
+apt-get --yes install puppetserver
+
+hostname $1
+
+ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
+
+echo "autosign = true" >> /etc/puppetlabs/puppet/puppet.conf
+
+systemctl enable puppetserver
+systemctl start puppetserver
+
+cd /
+tar xzf /vagrant/pmodules.tgz 
+SCRIPT
+
+
+### Node Configuration Script
+
+$nodescript = <<-SCRIPT
+
+echo "deb http://apt.puppetlabs.com bionic puppet5" > /etc/apt/sources.list.d/puppet5.list
+cp /vagrant/puppet5-keyring.gpg /etc/apt/trusted.gpg.d/
+apt-get update
+apt-get install puppet-agent
+
+hostname $1
+
+ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
+
+echo "[main]\ncertname = $1\nserver = puppetmaster.clouddomain.expert" > /etc/puppetlabs/puppet/puppet.conf
+echo "*/5 * * * * root /opt/puppetlabs/bin/puppet agent --test --onetime" >> /etc/crontab
+SCRIPT
+
+###
+# workaround Vagrant error 
+# - https://github.com/mitchellh/vagrant-aws/issues/566
+###
+
+class Hash
+  def slice(*keep_keys)
+    h = {}
+    keep_keys.each { |key| h[key] = fetch(key) if has_key?(key) }
+    h
+  end unless Hash.method_defined?(:slice)
+  def except(*less_keys)
+    slice(*keys - less_keys)
+  end unless Hash.method_defined?(:except)
+end
+
+###
+# main
+### 
+
+# Require the AWS provider plugin
+require 'vagrant-aws'
+
+# Create and configure the AWS instance(s)
+Vagrant.configure('2') do |config|
+
+  # Use dummy AWS box
+  config.vm.box = 'aws-dummy'
+
+  # Specify AWS provider configuration
+  config.vm.provider 'aws' do |aws|
+    # Read AWS authentication information from environment variables
+    aws.access_key_id = ENV['AWS_ACCESS_KEY_ID']
+    aws.secret_access_key = ENV['AWS_SECRET_ACCESS_KEY']
+
+    # Specify SSH keypair to use
+    aws.keypair_name = 'x1c'
+
+    # Specify region, AMI ID, and security group(s)
+    aws.instance_type = 't2.nano'
+    aws.region = 'us-east-2'
+    aws.ami = 'ami-07c1207a9d40bc3bd'
+    aws.security_groups = ['ssh']
+  end
+
+  # puppetmaster
+  config.vm.define "puppetmaster" do |node|
+    node.vm.provider 'aws' do |aws|
+      aws.instance_type = 't2.medium'
+      aws.security_groups = ['lmain']
+      aws.tags = { 'Name' => 'puppetmaster' }
+    end
+    node.vm.hostname = "puppetmaster"
+    node.vm.box_check_update = false
+    node.ssh.username = 'ubuntu'
+    node.ssh.private_key_path = '~/.ssh/x1c.pem'
+    node.vm.provision "shell" do |s|
+      s.inline = $pmasterscript
+      s.args = "puppetmaster.clouddomain.expert"
+    end
+  end
+
+  # locustmain
+  config.vm.define "locustmain" do |node|
+    node.vm.provider 'aws' do |aws|
+      aws.instance_type = 't2.medium'
+      aws.security_groups = ['lmain']
+      aws.tags = { 'Name' => 'locustmain' }
+    end
+    node.vm.hostname = "locustmain"
+    node.vm.box_check_update = false
+    node.ssh.username = 'ubuntu'
+    node.ssh.private_key_path = '~/.ssh/x1c.pem'
+    node.vm.provision "shell" do |s|
+      s.inline = $nodescript
+      s.args = "locustmain"
+    end
+  end
+
+  # nodes
+  (NODE_START..NODE_START+NODE_COUNT-1).each do |i|
+    config.vm.define "a-node#{i}" do |node|
+      hname = "a-node" + i.to_s.rjust(4, "0")
+      node.vm.provider 'aws' do |aws|
+        aws.tags = { 'Name' => hname }
+      end
+      node.vm.hostname = hname
+      node.vm.box_check_update = false
+      node.ssh.username = 'ubuntu'
+      node.ssh.private_key_path = '~/.ssh/x1c.pem'
+      node.vm.provision "shell" do |s|
+        s.inline = $nodescript
+        s.args = hname 
+      end
+    end
+  end
+end

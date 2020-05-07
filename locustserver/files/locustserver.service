@@ -1,0 +1,11 @@
+[Unit]
+Description=Locust master 
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/locust --master --web-host=127.0.0.1 -f /home/locust/locustfile.py
+User=locust
+Group=locust
+
+[Install]
+WantedBy=multi-user.target
