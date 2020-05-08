@@ -2,8 +2,8 @@
 
 Locust is a distributed stress testing system. The system itself and the test specification are programmed in Python and can then be run on N hosts (a swarm) that all query a central server for work assignments. This installation tested about 1000 nodes.
 
-The main server has a webinterface which is used to control the swarm and show statistics. 
-By default the webinterface is not secured. This installation frontends it with an nginx server for that purpose and forces SSL and requests a password.
+The main server has a web interface which is used to control the swarm and show statistics. 
+By default the web interface is not secured. This installation front ends it with an nginx server for that purpose and forces SSL and requests a password.
 
 ![locust1000](locust1000.png)
 
