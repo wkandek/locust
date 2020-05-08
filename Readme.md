@@ -5,7 +5,7 @@ Locust is a distributed stress testing system. The system itself and the test sp
 The main server has a webinterface which is used to control the swarm and show statistics. 
 By default the webinterface is not secured. This installation frontends it with an nginx server for that purpose and forces SSL and requests a password.
 
-![locust1000](/home/wkandek/puppet/aws/locust1000.png)
+![locust1000](locust1000.png)
 
 
 
