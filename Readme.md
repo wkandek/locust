@@ -20,20 +20,20 @@ Here is an example stress test file, which gets an index.html page with a random
 
 The example gets URL, then waits 0.1 seconds until it is executed again:
 
-`from locust import HttpLocust, TaskSet, between`
-`import random`
-
-`def index(l):`
-    `r = random.random()`
-    `indexstr = "/index.html?ok=" + str(r)`
-    `l.client.get(indexstr,headers={"User-Agent":"locust",name="/index.html?ok=[random]"})`
-
-`class UserBehavior(TaskSet):`
-    `tasks = {index: 1}`
-
-`class WebsiteUser(HttpLocust):`
-    `task_set = UserBehavior`
-    `wait_time = between(0.1,0.1)`
+    from locust import HttpLocust, TaskSet, between
+    import random
+    
+    def index(l):
+      r = random.random()
+      indexstr = "/index.html?ok=" + str(r)
+      l.client.get(indexstr,headers={"UserAgent":"locust",name="/index.html?ok=[random]"})
+    
+    class UserBehavior(TaskSet):
+      tasks = {index: 1}
+    
+    class WebsiteUser(HttpLocust):
+      task_set = UserBehavior
+      wait_time = between(0.1,0.1)
 
 
 
@@ -42,23 +42,25 @@ The example gets URL, then waits 0.1 seconds until it is executed again:
 There are 3 steps in the installation:
 
 1. Setup the puppetmaster server
-2. Setup the locustmain server
+2. Setup the locustmaster server
 3. Setup the locustnodes 
 
-The Vagrantfile contains the logic for each step, after each run DNS names or IP addresses need to be adjusted
+The Vagrantfile contains the logic for each step, after each run DNS names or IP addresses need to be adjusted.
 
-Puppet classes used
+Puppet classes used:
 
-###### locust
+##### locust
 
   - installs the locust package, creates a locust user and client type startup files (--slave and --master-host)
   - installs the initial test spec (locustfile.py)
-###### locustserver
+##### locustserver
   - installs the locust package, creates a locust user and server type startup files (--master and --webhost)
-  - install nginx, certificates and a password file
+  - installs nginx, certificates and a password file
+
 
 
 Files: 
+
 - locust
   - manifests/init.pp
   - files/locustfile.py
@@ -75,28 +77,42 @@ Files:
 Test on AWS
 -----------
 
-###### Prep: AWS Setup
+###### Prep: 
 
-- create access keys IAM, Users, Security Credentails
-- create a security group called ssh
-- AWS Access Keys are in the environment
+- Need control over a domain for the DNS names involved in the setup 
+
+  - examples use: clouddomain.expert
+
+- update the domainname used to connect to (locustmaster.coulddomain.expert) in locust/files/locust.service
+
+- Generate a certificate for locustmaster.coulddomain.expert and store the files in locustserver/files/nginx.crt and locustserver/files/nginx.key. The Common Name field needs to be: locustmaster.clouddomain.expert
+
+  - ```
+    openssl req \
+           -newkey rsa:2048 -nodes -keyout nginx.key \
+           -x509 -days 365 -out nginx.crt
+    ```
+
+###### AWS Setup
+
+- create AWS access keys IAM, Users, Security Credentials
+- create a security group called ssh TCP port 22
+- create a security group server TCP ports 22, 443, 8140 and 5557
 
 ###### vagrant up puppetmaster
 
 - get IP of machine created: 
   - aws ec2 describe-instances --filters Name=instance-state-name,Values=running --output table | egrep 'InstanceType|PublicIpAddress'
   - Web GUI
-- generate 2 Puppet classes: locust and locustserver and copy relevant files from local storage
-- update puppetmaster.clouddomain.expert that is used to set the puppetmaster in Vagrantfile
-  - in $nodescript puppet.conf
+- update puppetmaster.example.com IP address - it is needed for the next step
 
-###### vagrant up locustmain
+###### vagrant up locustmaster
 
 - get IP of machine created: 
   - aws ec2 describe-instances --filters Name=instance-state-name,Values=running --output table | egrep 'InstanceType|PublicIpAddress'
-  - update locustmain.clouddomain.expert with IP. This DNS name is used by the locust swarm to connect to and get work
-  - wait for 10 minutes until a puppet run has happened.
-  - try https://locustmain.clouddomain.expert
+  - update locustmaster.clouddomain.expert with IP. This DNS name is used by the locust swarm to connect to and get work
+  - wait for 10 minutes until a puppet run has happened (runs every 5 minutes)
+  - try https://locustmaster.clouddomain.expert
     - accept the self-signed cert
 
 ###### vagrant up
@@ -115,7 +131,7 @@ Test on AWS
 - Objective: faster than +/- 1 server per minute, work well almost instantaneous (< 2 minutes for 100 nodes)
 - Uses an image that has locust and puppet preinstalled, similar to before, but also auto-starts locust and puppet (in cron every 5 minutes).
 - puppet integration site.pp needs pattern/default for these nodes with names like ip-172-1-2-3.us-east-2.compute.internal /ip-172*compute.internal/ works as a pattern
-- aws ec2 run-instances --image-id ami-0ed16d798cb7255ef --count 1 --instance-type t2.nano --key-name x1c --security-group-ids sg-07867fe9616aeffd9 --subnet-id subnet-65fa3429
+- aws ec2 run-instances --image-id ami-00372552ffdb91f95 --count 1 --instance-type t2.nano --key-name x1c --security-group-ids sg-05096b3118477d870 --subnet-id subnet-65fa3429
   - AMI is the complete preconfigured image, just missing to register with puppet
   - security group is the id for a group that has SSH open
   - subnet-id: copied from AWS GUI, create an instance to see it
@@ -125,5 +141,5 @@ AMI images used:
 
 - ami-07c1207a9d40bc3bd - base ubuntu 18.04, puppet installs everything
 - ami-03d74b1461741236f - locust puppet installed, puppet configures
-- ami-0ed16d798cb7255ef - locust running, puppet scheduled, pre configured can be launched through AWS API
+- ami-00372552ffdb91f95 - locust running, puppet scheduled, pre configured can be launched through AWS API
 

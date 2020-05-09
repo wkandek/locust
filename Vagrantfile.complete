@@ -5,7 +5,7 @@
 #
 # This setup is controlled by puppet:
 # 1. puppetmaster server 
-# 2. locustmain server
+# 2. locustmaster server
 # 3. swarm nodes
 #    nodes could be running in other AWS accounts as well
 #    factor out the nodes part, get another account setup
@@ -18,10 +18,10 @@
 
 # how many locustnodes
 NODE_START = 1
-NODE_COUNT = 50 
+NODE_COUNT = 1 
+PMNAME = "puppetmaster.clouddomain.expert"
 
 ### pmaster Configuration Script
-
 $pmasterscript = <<-SCRIPT
 
 echo "deb http://apt.puppetlabs.com bionic puppet5" > /etc/apt/sources.list.d/puppet5.list
@@ -33,18 +33,29 @@ hostname $1
 
 ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
 
+# install locust and locustserver modules
+cd /etc/puppetlabs/code/environments/production/modules
+puppet module generate locustaws-locust --skip-interview
+mkdir -p /etc/puppetlabs/code/environments/production/modules/locust/files/
+cp /vagrant/locust/files/* /etc/puppetlabs/code/environments/production/modules/locust/files/
+cp /vagrant/locust/manifests/init.pp /etc/puppetlabs/code/environments/production/modules/locust/manifests/init.pp
+
+puppet module generate locustaws-locustserver --skip-interview
+mkdir -p /etc/puppetlabs/code/environments/production/modules/locustserver/files/
+cp /vagrant/locustserver/files/* /etc/puppetlabs/code/environments/production/modules/locustserver/files/
+cp /vagrant/locustserver/manifests/init.pp /etc/puppetlabs/code/environments/production/modules/locustserver/manifests/init.pp
+
+cp /vagrant/site.pp /etc/puppetlabs/code/environments/production/manifests/
+
 echo "autosign = true" >> /etc/puppetlabs/puppet/puppet.conf
 
 systemctl enable puppetserver
 systemctl start puppetserver
 
-cd /
-tar xzf /vagrant/pmodules.tgz 
 SCRIPT
 
 
 ### Node Configuration Script
-
 $nodescript = <<-SCRIPT
 
 echo "deb http://apt.puppetlabs.com bionic puppet5" > /etc/apt/sources.list.d/puppet5.list
@@ -56,7 +67,7 @@ hostname $1
 
 ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
 
-echo "[main]\ncertname = $1\nserver = puppetmaster.clouddomain.expert" > /etc/puppetlabs/puppet/puppet.conf
+echo "[main]\ncertname = $1\nserver = $2" > /etc/puppetlabs/puppet/puppet.conf
 echo "*/5 * * * * root /opt/puppetlabs/bin/puppet agent --test --onetime" >> /etc/crontab
 SCRIPT
 
@@ -109,7 +120,7 @@ Vagrant.configure('2') do |config|
   config.vm.define "puppetmaster" do |node|
     node.vm.provider 'aws' do |aws|
       aws.instance_type = 't2.medium'
-      aws.security_groups = ['lmain']
+      aws.security_groups = ['server']
       aws.tags = { 'Name' => 'puppetmaster' }
     end
     node.vm.hostname = "puppetmaster"
@@ -118,31 +129,31 @@ Vagrant.configure('2') do |config|
     node.ssh.private_key_path = '~/.ssh/x1c.pem'
     node.vm.provision "shell" do |s|
       s.inline = $pmasterscript
-      s.args = "puppetmaster.clouddomain.expert"
+      s.args = PMNAME
     end
   end
 
-  # locustmain
-  config.vm.define "locustmain" do |node|
+  # locustmaster
+  config.vm.define "locustmaster" do |node|
     node.vm.provider 'aws' do |aws|
       aws.instance_type = 't2.medium'
-      aws.security_groups = ['lmain']
-      aws.tags = { 'Name' => 'locustmain' }
+      aws.security_groups = ['server']
+      aws.tags = { 'Name' => 'locustmaster' }
     end
-    node.vm.hostname = "locustmain"
+    node.vm.hostname = "locustmaster"
     node.vm.box_check_update = false
     node.ssh.username = 'ubuntu'
     node.ssh.private_key_path = '~/.ssh/x1c.pem'
     node.vm.provision "shell" do |s|
       s.inline = $nodescript
-      s.args = "locustmain"
+      s.args = ["locustmaster", PMNAME]
     end
   end
 
   # nodes
   (NODE_START..NODE_START+NODE_COUNT-1).each do |i|
-    config.vm.define "a-node#{i}" do |node|
-      hname = "a-node" + i.to_s.rjust(4, "0")
+    hname = "a-node" + i.to_s.rjust(4, "0")
+    config.vm.define hname do |node|
       node.vm.provider 'aws' do |aws|
         aws.tags = { 'Name' => hname }
       end
@@ -152,7 +163,7 @@ Vagrant.configure('2') do |config|
       node.ssh.private_key_path = '~/.ssh/x1c.pem'
       node.vm.provision "shell" do |s|
         s.inline = $nodescript
-        s.args = hname 
+        s.args = [hname, PMNAME]
       end
     end
   end

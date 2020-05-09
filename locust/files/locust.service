@@ -3,7 +3,7 @@ Description=Locust slave
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/locust --slave --master-host=locustmain.clouddomain.expert -f /home/locust/locustfile.py
+ExecStart=/usr/local/bin/locust --slave --master-host=locustmaster.clouddomain.expert -f /home/locust/locustfile.py
 User=locust
 Group=locust
 Restart=always

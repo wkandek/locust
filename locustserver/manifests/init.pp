@@ -13,14 +13,14 @@ class locustserver {
     source => 'puppet:///modules/locustserver/dhparam.pem', 
   }
 
-  file { '/etc/ssl/certs/nginx-selfsigned.crt':
+  file { '/etc/ssl/certs/nginx.crt':
     ensure => 'present',
-    source => 'puppet:///modules/locustserver/nginx-selfsigned.crt', 
+    source => 'puppet:///modules/locustserver/nginx.crt', 
   }
 
-  file { '/etc/ssl/private/nginx-selfsigned.key':
+  file { '/etc/ssl/private/nginx.key':
     ensure => 'present',
-    source => 'puppet:///modules/locustserver/nginx-selfsigned.key', 
+    source => 'puppet:///modules/locustserver/nginx.key', 
   }
 
   file { '/etc/nginx/sites-enabled/default':
