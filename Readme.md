@@ -2,12 +2,18 @@
 
 Locust is a distributed stress testing system. The system itself and the test specification are programmed in Python and can then be run on N hosts (a swarm) that all query a central server for work assignments. This installation tested about 1000 nodes.
 
-The main server has a web interface which is used to control the swarm and show statistics. 
-By default the web interface is not secured. This installation front ends it with an nginx server for that purpose and forces SSL and requests a password.
-
 ![locust1000](locust1000.png)
 
 
+
+The installation was tested in terms of performance and did about 100,000 RPS with 400 slaves and 4000 users, using a 0.01 interval in the spec file. Load on the slaves was uneven ranging from 100% to 30%.
+
+![locust400_4000](locust400_4000_0-01.png)
+
+
+
+The main server has a web interface which is used to control the swarm and show statistics. 
+By default the web interface is not secured. This installation front ends it with an nginx server for that purpose and forces SSL and requests a password.
 
 The locust package itself is hosted on PyPi.
 
@@ -161,18 +167,27 @@ Test on AWS
 ###### Alternative node creation: Use AWS API/CLI directly
 
 - Objective: faster than +/- 1 server per minute, works almost instantaneous (< 2 minutes for 100 nodes)
+
 - Uses an image that has locust and puppet preinstalled, auto-starts locust and puppet (in cron every 5 minutes).
+
 - puppet integration site.pp needs pattern/default for these nodes with names like ip-172-1-2-3.us-east-2.compute.internal. The pattern /ip-172*compute.internal/ works.
-- aws ec2 run-instances --image-id ami-015e076f2b599a9a9 --count 1 --instance-type t2.nano --key-name x1c --security-group-ids sg-05096b3118477d870 --subnet-id subnet-65fa3429
+
+- ```
+  aws ec2 run-instances --image-id ami-07e626ef282f99cc1 --count 1 --instance-type t2.nano --key-name x1c --security-group-ids sg-07867fe9616aeffd9 --subnet-id subnet-65fa3429 
+  ```
+  
+  
+  
   - AMI is the complete preconfigured image, just missing to register with puppet
     - it can be created using a vagrant configured node, by erasing /etc/puppetlabs/puppet/ssl/* and shutting it down before the next puppet run (every 5 minutes)
   - security group is the id for a group that has SSH open
   - subnet-id: copied from AWS GUI, create an instance to see it
+  
 - adjust count to create more nodes
 
 AMI images used:
 
 - ami-07c1207a9d40bc3bd - base Ubuntu 18.04, puppet installs everything, image is publicly available
 - ami-03d74b1461741236f - locust and puppet installed, puppet configures, image is publicly available
-- ami-015e076f2b599a9a9 - based of a installed a-node0001, deleted /etc/puppetlabs/puppet/ssl/*, image is publicly available
+- ami-07e626ef282f99cc1 - based of a installed a-node0001, deleted /etc/puppetlabs/puppet/ssl/*, image is publicly available, name: locust preconfig
 
