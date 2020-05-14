@@ -1,8 +1,6 @@
 class locustserver {
 
-  package { 'python3-pip':
-    ensure   => 'installed',
-  } 
+  include locust
 
   package { 'nginx':
     ensure   => 'installed',
@@ -32,16 +30,6 @@ class locustserver {
   file { '/etc/nginx/htpasswd':
     ensure => 'present',
     source => 'puppet:///modules/locustserver/htpasswd', 
-  }
-
-  package { 'locust':
-    ensure   => 'installed',
-    provider => 'pip3',
-  }
-
-  user { 'locust':
-    ensure => 'present',
-    managehome => 'true',
   }
 
   service { "nginx":

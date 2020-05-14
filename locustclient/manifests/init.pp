@@ -1,7 +1,7 @@
-# Class: locust
+# Class: locustclient
 # ===========================
 #
-# Full description of class locust here.
+# Full description of class locustclient here.
 #
 # Parameters
 # ----------
@@ -28,7 +28,7 @@
 # --------
 #
 # @example
-#    class { 'locust':
+#    class { 'locustclient':
 #      servers => [ 'pool.ntp.org', 'ntp.local.company.com' ],
 #    }
 #
@@ -42,20 +42,24 @@
 #
 # Copyright 2020 Your name here, unless otherwise noted.
 #
-class locust {
+class locustclient {
 
-  package { 'python3-pip':
-    ensure   => 'installed',
-  } 
+  include locust
 
-  package { 'locust':
-    ensure   => 'installed',
-    provider => 'pip3',
+  file { '/home/locust/locustfile.py':
+    ensure => 'present',
+    source => 'puppet:///modules/locustclient/locustfile.py',
+    notify => Service['locust']
   }
 
-  user { 'locust':
+  file { '/etc/systemd/system/locust.service':
     ensure => 'present',
-    managehome => 'true',
+    source => 'puppet:///modules/locustclient/locust.service',
+  }
+
+  service { "locust":
+    ensure => "running",
+    enable => "true",
   }
 
 }

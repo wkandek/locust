@@ -19,6 +19,7 @@
 # how many locustnodes
 NODE_START = 1
 NODE_COUNT = 1 
+ 
 PMNAME = "puppetmaster.clouddomain.expert"
 
 ### pmaster Configuration Script
@@ -33,12 +34,15 @@ hostname $1
 
 ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
 
-# install locust and locustserver modules
+# install locust, locusclient and locustserver modules
 cd /etc/puppetlabs/code/environments/production/modules
 puppet module generate locustaws-locust --skip-interview
-mkdir -p /etc/puppetlabs/code/environments/production/modules/locust/files/
-cp /vagrant/locust/files/* /etc/puppetlabs/code/environments/production/modules/locust/files/
 cp /vagrant/locust/manifests/init.pp /etc/puppetlabs/code/environments/production/modules/locust/manifests/init.pp
+
+puppet module generate locustaws-locustclient --skip-interview
+mkdir -p /etc/puppetlabs/code/environments/production/modules/locustclient/files/
+cp /vagrant/locustclient/files/* /etc/puppetlabs/code/environments/production/modules/locustclient/files/
+cp /vagrant/locustclient/manifests/init.pp /etc/puppetlabs/code/environments/production/modules/locustclient/manifests/init.pp
 
 puppet module generate locustaws-locustserver --skip-interview
 mkdir -p /etc/puppetlabs/code/environments/production/modules/locustserver/files/
@@ -66,10 +70,13 @@ apt-get install puppet-agent
 hostname $1
 
 ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
+systemctl disable puppet
+systemctl stop puppet
 
 echo "[main]\ncertname = $1\nserver = $2" > /etc/puppetlabs/puppet/puppet.conf
-echo "*/5 * * * * root /opt/puppetlabs/bin/puppet agent --test --onetime" >> /etc/crontab
+echo "*/5 * * * * root /opt/puppetlabs/bin/puppet agent --onetime --no-daemonize --splay --splaylimit 60" >> /etc/crontab
 SCRIPT
+
 
 ###
 # workaround Vagrant error 
@@ -110,7 +117,7 @@ Vagrant.configure('2') do |config|
     aws.keypair_name = 'x1c'
 
     # Specify region, AMI ID, and security group(s)
-    aws.instance_type = 't2.nano'
+    aws.instance_type = 't2.micro'
     aws.region = 'us-east-2'
     aws.ami = 'ami-07c1207a9d40bc3bd'
     aws.security_groups = ['ssh']
@@ -156,6 +163,7 @@ Vagrant.configure('2') do |config|
     config.vm.define hname do |node|
       node.vm.provider 'aws' do |aws|
         aws.tags = { 'Name' => hname }
+        aws.ami = 'ami-0383fbdac4615ba6f'
       end
       node.vm.hostname = hname
       node.vm.box_check_update = false

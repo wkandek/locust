@@ -4,7 +4,8 @@ import random
 
 def index(l):
     r = random.random()
-    indexstr = "/index.html?ok=" + str(r)
+    #indexstr = "/index.html?ok=" + str(r)
+    indexstr = "/index.html"
     l.client.get(indexstr,headers={"User-Agent":"locust"},name="/index.html?ok=[random]")
 
 

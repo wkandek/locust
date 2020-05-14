@@ -82,33 +82,47 @@ The Vagrantfile contains the logic for each step, after each run a DNS name or I
 Puppet classes used:
 
 ##### locustserver
-  - installs the locust package, creates a locust user and server type startup files (--master and --webhost)
+  - server type startup files (--master and --webhost)
+  - installs the initial test spec (locustfile.py)
   - installs nginx, certificates and a password file
+
+##### locustclient
+
+  - client type startup files (--slave and --master-host)
+  - installs the initial test spec (locustfile.py)
 
 ##### locust
 
-  - installs the locust package, creates a locust user and client type startup files (--slave and --master-host)
-  - installs the initial test spec (locustfile.py)
+  - installs the locust package, creates a locust user 
 
-##### 
+  - common to both locustclient and locustserver
+
+    
 
 Files: 
 
 - locustserver/init.pp
   - manifests/init.pp
   - files/locustfile.py
+  - files/locustserver.service
   - files/dhparam.pem
   - files/nginx.crt
   - files/nginx.key
   - files/htpasswd
   - files/default
   
-- locust
+- locustclient
 
   - manifests/init.pp
   - files/locustfile.py
-
+- files/locustclient.service
   
+- locust
+
+  - manifests/init.pp
+
+    
+
 
 
 Test on AWS
@@ -160,9 +174,31 @@ Test on AWS
 - as an optimization uses the base Ubuntu 18.04 image with puppet-agent and locust preinstalled
 - One can increase the number of nodes incrementally, but vagrant creates nodes in parallel and can easily overwhelm the AWS API and get in a throttling mode (happened with 64 nodes). 
   - drive_vagrant.sh is a shells script that can be sued can be used to incrementally add nodes
-  - throughput: 1 node per minute +/-
+  - throughput: 1 node per minute +/- with preinstalled image
 - can be run in parallel on multiple AWS accounts
   - needs a keypair definition
+- pure installation from ubuntu base image is very slow! - between 30 minutes and 40 minutes, fastest alternative is AWS/CLI usage as an alternative
+
+
+
+##### Performance Data
+
+Target was a set of 10 load balanced varnish/apache servers. t2.micro is a working node size, t2.nano has shown some lag and difficulties in keeping up with reconfigurations.
+
+     Nodes Users      RPS   Node CPU
+         1    10       97        16%   # interval 0.1, 0.2
+         1    20      193        26%
+         1    40      385        51%
+        20    40      387         3%
+        20   400     3875        28%
+       200   400     3600         3%
+       200  4000    30419     91/26%
+       400  4000   103000    100/48%    # interval time to 0.01,0.01
+
+
+
+
+
 
 ###### Alternative node creation: Use AWS API/CLI directly
 
@@ -173,7 +209,7 @@ Test on AWS
 - puppet integration site.pp needs pattern/default for these nodes with names like ip-172-1-2-3.us-east-2.compute.internal. The pattern /ip-172*compute.internal/ works.
 
 - ```
-  aws ec2 run-instances --image-id ami-07e626ef282f99cc1 --count 1 --instance-type t2.nano --key-name x1c --security-group-ids sg-07867fe9616aeffd9 --subnet-id subnet-65fa3429 
+  aws ec2 run-instances --image-id ami-007315d25def4d25f --count 1 --instance-type t2.micro --key-name x1c --security-group-ids sg-07867fe9616aeffd9 --subnet-id subnet-65fa3429 
   ```
   
   
@@ -188,6 +224,12 @@ Test on AWS
 AMI images used:
 
 - ami-07c1207a9d40bc3bd - base Ubuntu 18.04, puppet installs everything, image is publicly available
-- ami-03d74b1461741236f - locust and puppet installed, puppet configures, image is publicly available
+- ami-0de3f13f798f81d34 - locust and puppet installed, puppet configures, image is publicly available, Name: locustclient
+  - apt-get update; apt-get upgrade; apt-get install python3-pip; pip install locust
+- ami-007315d25def4d25f  - based of a installed a-node0001, deleted /etc/puppetlabs/puppet/ssl/*, image is publicly available, Name: AWS_CLI_LOCUST
+- 
+- ami-0383fbdac4615ba6f - locust and puppet installed, puppet configures, image is publicly available
+  - apt-get update; apt-get upgrade; apt-get install python3-pip; pip install locust
 - ami-07e626ef282f99cc1 - based of a installed a-node0001, deleted /etc/puppetlabs/puppet/ssl/*, image is publicly available, name: locust preconfig
+- ami-0de3f13f798f81d34 - based of a installed a-node0001, deleted /etc/puppetlabs/puppet/ssl/*, image is publicly available, name: locustclient (after latest refactor)
 
