@@ -49,15 +49,15 @@ class locustclient {
   file { '/home/locust/locustfile.py':
     ensure => 'present',
     source => 'puppet:///modules/locustclient/locustfile.py',
-    notify => Service['locust']
+    notify => Service['locustclient']
   }
 
-  file { '/etc/systemd/system/locust.service':
+  file { '/etc/systemd/system/locustclient.service':
     ensure => 'present',
-    source => 'puppet:///modules/locustclient/locust.service',
+    source => 'puppet:///modules/locustclient/locustclient.service',
   }
 
-  service { "locust":
+  service { "locustclient":
     ensure => "running",
     enable => "true",
   }

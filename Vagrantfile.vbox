@@ -1,0 +1,182 @@
+#-*- mode: ruby -*-
+# vi: set ft=ruby :
+
+######################################################################################
+# User Variables Section CP = Control plane NODE = nodes
+######################################################################################
+
+VM_SUBNET = "192.168.100."
+WS_OCTET = 50
+CP_OCTET = 100
+LC_OCTET = 150
+DP_OCTET = 200
+BOX_IMAGE = "ubuntu/bionic64"
+NODE_COUNT = 1 
+
+CPU = 2 
+SERVERMEMORY = 4096 
+NODECPU = 1 
+NODEMEMORY = 512 
+
+######################################################################################
+# VM Configuration Scripts
+######################################################################################
+
+$pmasterscript = <<-SCRIPT
+
+echo "Setting up ssh..."
+sed -i -e 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i -e 's/#PermitRoot/PermitRoot/' /etc/ssh/sshd_config
+sed -i -e 's/#PubkeyA/PubkeyA/' /etc/ssh/sshd_config
+systemctl reload sshd
+
+mkdir /root/.ssh
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDDZaeegp+1o4dYElXbAUbk5Yn7diEem3j3oEDqguiQiREAOc4Pq/vDZGfRsMdBBV0DVa3N4f9UlthUR7nfzXWeG/GuZTtQvH2FPUKxpCDHuCwJSmrQfct6J+C+t+lLeygXddtbz96IHh1N6olxku/esApzPkbQ/tqGir2tUJVLqidKkWIkehhRZloGd3wCRzS4xzqnIoN3iuTSoTFTPvywA1T3Kiz527uISo6td30REsOaOQc1WT5EgOO+ZttQ8bxq74G9/y1m4ZPvGTdQCMJFDJw7EdeH8F7zosyAuxkJYjWbTqwxCNisIWGkNO73l7IKCmiTjHKRuU3fgRiksPcN3A2ta2iF+CgB713vDRmtAyamAWknyAmrsu6vAw/qoCyIAwyQCvNntFU/48UfbHrRB79ffUP77EiPFDPmrt2BzjuCy/D/pLuGFYHuQsfyf7OWxCort+JfTxF/2J1ZszOyz7u403DsXvQ9qWWVfHKAuqQ1Cf57kyIKk7bdCpuRPiM= wkandek@wmx1" > /root/.ssh/authorized_keys
+
+echo "deb http://apt.puppetlabs.com bionic puppet5" > /etc/apt/sources.list.d/puppet5.list
+cp /vagrant/puppet5-keyring.gpg /etc/apt/trusted.gpg.d/
+apt-get update
+apt-get --yes install puppetserver
+
+hostname $1
+
+ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
+# install locust, locusclient and locustserver modules
+cd /etc/puppetlabs/code/environments/production/modules
+puppet module generate locustaws-locust --skip-interview
+cp /vagrant/locust/manifests/init.pp /etc/puppetlabs/code/environments/production/modules/locust/manifests/init.pp
+
+puppet module generate locustaws-locustclient --skip-interview
+mkdir -p /etc/puppetlabs/code/environments/production/modules/locustclient/files/
+cp /vagrant/locustclient/files/* /etc/puppetlabs/code/environments/production/modules/locustclient/files/
+cp /vagrant/locustclient/manifests/init.pp /etc/puppetlabs/code/environments/production/modules/locustclient/manifests/init.pp
+
+puppet module generate locustaws-locustserver --skip-interview
+mkdir -p /etc/puppetlabs/code/environments/production/modules/locustserver/files/
+cp /vagrant/locustserver/files/* /etc/puppetlabs/code/environments/production/modules/locustserver/files/
+cp /vagrant/locustserver/manifests/init.pp /etc/puppetlabs/code/environments/production/modules/locustserver/manifests/init.pp
+
+cp /vagrant/site.pp /etc/puppetlabs/code/environments/production/manifests/
+
+echo "autosign = true" >> /etc/puppetlabs/puppet/puppet.conf
+
+systemctl enable puppetserver
+systemctl start puppetserver
+
+SCRIPT
+
+$nodescript = <<-SCRIPT
+
+echo "Setting up ssh..."
+sed -i -e 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i -e 's/#PermitRoot/PermitRoot/' /etc/ssh/sshd_config
+sed -i -e 's/#PubkeyA/PubkeyA/' /etc/ssh/sshd_config
+systemctl reload sshd
+
+mkdir /root/.ssh
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDDZaeegp+1o4dYElXbAUbk5Yn7diEem3j3oEDqguiQiREAOc4Pq/vDZGfRsMdBBV0DVa3N4f9UlthUR7nfzXWeG/GuZTtQvH2FPUKxpCDHuCwJSmrQfct6J+C+t+lLeygXddtbz96IHh1N6olxku/esApzPkbQ/tqGir2tUJVLqidKkWIkehhRZloGd3wCRzS4xzqnIoN3iuTSoTFTPvywA1T3Kiz527uISo6td30REsOaOQc1WT5EgOO+ZttQ8bxq74G9/y1m4ZPvGTdQCMJFDJw7EdeH8F7zosyAuxkJYjWbTqwxCNisIWGkNO73l7IKCmiTjHKRuU3fgRiksPcN3A2ta2iF+CgB713vDRmtAyamAWknyAmrsu6vAw/qoCyIAwyQCvNntFU/48UfbHrRB79ffUP77EiPFDPmrt2BzjuCy/D/pLuGFYHuQsfyf7OWxCort+JfTxF/2J1ZszOyz7u403DsXvQ9qWWVfHKAuqQ1Cf57kyIKk7bdCpuRPiM= wkandek@wmx1" > /root/.ssh/authorized_keys
+
+echo "192.168.100.100	puppetmaster" >> /etc/hosts
+echo "192.168.100.150	locustmaster.clouddomain.expert" >> /etc/hosts
+echo "deb http://apt.puppetlabs.com bionic puppet5" > /etc/apt/sources.list.d/puppet5.list
+cp /vagrant/puppet5-keyring.gpg /etc/apt/trusted.gpg.d/
+apt-get update
+apt-get install puppet-agent
+
+ln -s /opt/puppetlabs/bin/puppet /usr/bin/puppet
+echo "*/5 * * * * root /opt/puppetlabs/bin/puppet agent --onetime --no-daemonize --splay --splaylimit 60" >> /etc/crontab
+
+echo "[main]\ncertname = $1\nserver = puppetmaster" > /etc/puppetlabs/puppet/puppet.conf
+SCRIPT
+
+$webscript = <<-SCRIPT
+
+echo "Setting up ssh..."
+sed -i -e 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i -e 's/#PermitRoot/PermitRoot/' /etc/ssh/sshd_config
+sed -i -e 's/#PubkeyA/PubkeyA/' /etc/ssh/sshd_config
+systemctl reload sshd
+
+mkdir /root/.ssh
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDDZaeegp+1o4dYElXbAUbk5Yn7diEem3j3oEDqguiQiREAOc4Pq/vDZGfRsMdBBV0DVa3N4f9UlthUR7nfzXWeG/GuZTtQvH2FPUKxpCDHuCwJSmrQfct6J+C+t+lLeygXddtbz96IHh1N6olxku/esApzPkbQ/tqGir2tUJVLqidKkWIkehhRZloGd3wCRzS4xzqnIoN3iuTSoTFTPvywA1T3Kiz527uISo6td30REsOaOQc1WT5EgOO+ZttQ8bxq74G9/y1m4ZPvGTdQCMJFDJw7EdeH8F7zosyAuxkJYjWbTqwxCNisIWGkNO73l7IKCmiTjHKRuU3fgRiksPcN3A2ta2iF+CgB713vDRmtAyamAWknyAmrsu6vAw/qoCyIAwyQCvNntFU/48UfbHrRB79ffUP77EiPFDPmrt2BzjuCy/D/pLuGFYHuQsfyf7OWxCort+JfTxF/2J1ZszOyz7u403DsXvQ9qWWVfHKAuqQ1Cf57kyIKk7bdCpuRPiM= wkandek@wmx1" > /root/.ssh/authorized_keys
+
+apt-get update
+apt-get --yes install apache2
+
+systemctl enable apache2
+systemctl start apache2
+SCRIPT
+
+
+######################################################################################
+# Create VMs Section
+######################################################################################
+
+Vagrant.configure("2") do |config|
+  config.vm.define "puppetmaster" do |node|
+    node.vm.box = BOX_IMAGE
+    node.vm.hostname = "puppetmaster"
+    node.vm.network :private_network, ip: "#{VM_SUBNET}#{CP_OCTET}"
+    node.vm.synced_folder "./" , "/vagrant"
+    node.vm.provider :virtualbox do |v|
+      v.name = "puppetmaster"
+      v.memory = SERVERMEMORY
+      v.cpus = CPU
+    end
+    node.vm.provision "shell" do |s|
+      s.inline = $pmasterscript
+      s.args = "puppetmaster"
+    end
+  end
+
+  config.vm.define "web" do |node|
+    node.vm.box = BOX_IMAGE
+    node.vm.hostname = "web"
+    node.vm.network :private_network, ip: "#{VM_SUBNET}#{WS_OCTET}"
+    node.vm.synced_folder "./" , "/vagrant"
+    node.vm.provider :virtualbox do |v|
+      v.name = "web"
+      v.memory = NODEMEMORY
+      v.cpus = CPU
+    end
+    node.vm.provision "shell" do |s|
+      s.inline = $webscript
+      s.args = "web"
+    end
+  end
+
+  config.vm.define "locustmaster" do |node|
+    node.vm.box = BOX_IMAGE
+    node.vm.hostname = "locustmaster"
+    node.vm.network :private_network, ip: "#{VM_SUBNET}#{LC_OCTET}"
+    node.vm.synced_folder "./" , "/vagrant"
+    node.vm.provider :virtualbox do |v|
+      v.name = "locustmaster"
+      v.memory = SERVERMEMORY
+      v.cpus = CPU
+    end
+    node.vm.provision "shell" do |s|
+      s.inline = $nodescript
+      s.args = "locustmaster"
+    end
+  end
+
+  (1..NODE_COUNT).each do |i|
+    hname = "a-node" + i.to_s.rjust(4, "0")
+    config.vm.define hname do |node|
+      node.vm.box = BOX_IMAGE
+      node.vm.hostname = hname
+      node.vm.network :private_network, ip: "#{VM_SUBNET}#{DP_OCTET+i}"
+      node.vm.synced_folder "./" , "/vagrant"
+      node.vm.provider :virtualbox do |v|
+        v.name = hname
+        v.memory = NODEMEMORY
+        v.cpus = CPU
+      end
+      node.vm.provision "shell" do |s|
+        s.inline = $nodescript
+        s.args = hname
+      end
+    end
+  end
+end

@@ -1,0 +1,12 @@
+[Unit]
+Description=Locust slave
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/locust --worker --master-host=locustmaster.clouddomain.expert -f /home/locust/locustfile.py
+User=locust
+Group=locust
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

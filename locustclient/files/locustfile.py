@@ -1,16 +1,13 @@
-from locust import HttpLocust, TaskSet, between
 import random
+from locust import HttpUser, task, between
+from locust.contrib.fasthttp import FastHttpUser
 
+class QuickstartUser(FastHttpUser):
+    wait_time = between(0.01, 0.01)
 
-def index(l):
-    r = random.random()
-    indexstr = "/index.html?OK=" + str(r)
-    l.client.get(indexstr,headers={"User-Agent":"LOCUST 5.6"},name="/index.html?notok=[random]")
-
-
-class UserBehavior(TaskSet):
-    tasks = {index: 1}
-
-class WebsiteUser(HttpLocust):
-    task_set = UserBehavior
-    wait_time = between(0.1,0.1)
+    @task
+    def index_page(self):
+        r = random.random()
+        #indexstr = "/index.html?ok=" + str(r)
+        indexstr = "/index.html"
+        self.client.get(indexstr,headers={"User-Agent":"locust"})
